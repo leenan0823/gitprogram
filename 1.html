@@ -1,0 +1,598 @@
+<template>
+  <el-dialog :title="task.name" :visible.sync="visible" class="dialogCommonWar ui_dialog_02 spe1" :before-close="close" v-if="task.taskId">
+    <userinfo :task="task">
+      <div slot="diseaseInfo">
+        <p>
+          <span v-if="caseinfo && caseinfo.results && caseinfo.results.length && caseinfo.results[0].diseaseName"><em>诊断名称：</em><b v-for="(sitem, sindex) in caseinfo.results">{{sitem.diseaseName}}<template v-if="caseinfo.results.length !== (sindex+1)">，</template></b></span>
+          <a v-if="task.key !== 'docRefundForHospital_doing'" :href="'#/workspace/main/diagnosis/'+task.patient.id" target="_blank" class="a_ui_02">诊疗记录</a>
+        </p>
+      </div>
+    </userinfo>
+    <cdss
+      v-if="task.key !== 'docRefund_doing' && task.key !== 'docRefundForHospital_doing'"
+      :patient-id="task.patient.id"
+      :recipe-type="isCH ? 1 : 2"
+      :visit-sn="task.variables.visitNumber"
+      :recipe-items="obj.recipeItems"
+      :recipe="obj">
+    </cdss>
+    <div :class="'drug_stock ' + ((drugStock && drugStock.length) ? '' : 'spe') " v-if="task.key === 'takeMedicine_makeup' || task.key === 'takeWeasternMedicine_makeup'">
+      <template v-if="drugStock && drugStock.length">
+        <el-row>
+          <el-col class="alg_l">
+            库存不足：
+          </el-col>
+          <el-col :span="20">
+            <ol>
+              <li v-for="item,i in drugStock" style="list-style-type: decimal;"><span>【{{item.name}}，{{item.totalNum}}{{item.unitName}}】</span><span>当前库存:【{{item.nowStockNum}}{{item.unitName}}】</span><span>补货数量:【{{item.instoreNum}}{{item.unitName}}】</span></li>
+            </ol>
+          </el-col>
+        </el-row>
+      </template>
+      <template v-else>
+        <el-row>
+          <el-col class="alg_l">
+            当前库存充足，可以发药。
+          </el-col>
+        </el-row>
+      </template>
+    </div>
+    <template v-if="obj.recipeItems && obj.recipeItems.length">
+      <template v-if="task.key !== 'takeWeasternMedicine_receivedrug'">
+        <div class="userMedicines" v-if="obj.recipeItems && obj.recipeItems.length">
+          <div v-if="isCH">
+            <ul>
+              <div v-for="item in obj.recipeItems" :key="item.id">
+                <li>
+                  <span v-for="v in JSON.parse(item.adviceContent)" :key="v.id">
+                      <i class="icon iconfont icon-Leafs"></i>
+                      <span class="fw-b">{{v.serviceItem.name}}</span>
+                      <span>{{v.amount}}g /
+                        <sys-value type="THC_SYS_DECOCTINGMETHOD" :code="v.decoction"></sys-value>
+                      </span>
+                  </span>
+                </li>
+                <div class="medicineInfo">
+                   <span>用法：
+                        <em v-if="item.disposeContent.split(',')[0]">
+                            {{item.disposeContent.split(',')[0]}}
+                        </em>
+                  </span>
+                   <span>频次：
+                        <em class="mr16" v-if="item.disposeContent.split(',')[1]">
+                            {{item.disposeContent.split(',')[1]}}
+                        </em>
+                    </span>
+                  <span>
+                    剂数：
+                        <em class="mr16" v-if="item.disposeContent.split(',')[2]">
+                            {{item.disposeContent.split(',')[2]}}
+                        </em>
+                  </span>
+                  <div>备注：<em>{{item.entrust}}</em></div>
+                </div>
+              </div>
+            </ul>
+          </div>
+          <div v-if="!isCH">
+            <li v-for="item in obj.recipeItems">
+              <span class="fw-b" v-if="item.serviceName">{{item.serviceName}}<span v-if="item.spec">，{{item.spec}}</span></span>
+              <span v-if="item.count">，{{item.count}}{{item.countUnit}}</span>
+              <span v-if="item.employTxt">，{{item.employTxt}}</span>
+              <span v-if="item.useFreqTxt">，{{item.useFreqTxt}}</span>
+              <span v-if="item.measure">，每次 {{item.measure ? Number(item.measure).toFixed(2) : ''}}{{item.measureUnitName}}</span>
+            </li>
+          </div>
+        </div>
+      </template>
+      <template v-else>
+        <div class="userMedicines" v-if="isCH">
+          <ul>
+            <li v-for="item in obj.recipeItems" >
+              <i class="icon iconfont icon-Leafs"></i>
+              <span class="fw-b">{{item.name}}</span>
+              <span>{{item.amount}}g / <sys-value type="THC_SYS_DECOCTINGMETHOD" :code="item.decoction"></sys-value></span>
+            </li>
+          </ul>
+          <div class="medicineInfo">
+          <span>用法：
+            <em><sys-value type="THC_PHR_DRUG_ROUTE" :code="obj.employ"></sys-value></em>
+          </span>
+            <span>频次：
+            <em class="mr16"><sys-value type="THC_PHR_DRUG_FREQUENCY" :code="obj.useFreq"></sys-value></em>
+            <em class="mr16">{{obj.decoct ? '代煎' : ''}}</em>
+            <em class="mr16">
+              <sys-value type="THC_SYS_PRESCRIPTION_SOURCE" :code="obj.source"></sys-value>
+            </em>
+          </span>
+            <span>
+            剂数：<em class="mr16">{{obj.count}}</em>
+          </span>
+            <div>备注：<em>{{obj.comment}}</em></div>
+          </div>
+        </div>
+        <div class="western_drug_list" v-if="!isCH">
+          <div class="top_wrap">
+            <div class="t_filter">
+              <b>RP</b>
+              <!--<el-form class="ever_form_spe">-->
+                <!--<el-form-item>-->
+                  <!--<el-radio-group v-model="filterType">-->
+                    <!--<el-radio :label="1">入库时间</el-radio>-->
+                    <!--<el-radio :label="2">药品有效期</el-radio>-->
+                  <!--</el-radio-group>-->
+                <!--</el-form-item>-->
+              <!--</el-form>-->
+            </div>
+            <el-row class="t_head">
+              <el-col :span="8">药品</el-col>
+              <el-col :span="16" class="spe">
+                <el-row>
+                  <el-col :span="5">批号</el-col>
+                  <el-col :span="4">库存</el-col>
+                  <el-col :span="6">有效期</el-col>
+                  <el-col :span="9">数量</el-col>
+                </el-row>
+              </el-col>
+            </el-row>
+          </div>
+          <ul class="t_list">
+            <li v-for="item,index in obj.recipeItems">
+              <el-row class="item">
+                <el-col :span="8" class="drug_info">
+                  <div class="inner">
+                    <b>{{item.serviceName}}</b>
+                    <span>{{item.spec}}</span>
+                  </div>
+                </el-col>
+                <el-col :span="16" class="drug_batch_detail">
+                  <template v-if="item.applyVo && item.applyVo.outStockObject && item.applyVo.outStockObject.outStockItemList && item.applyVo.outStockObject.outStockItemList[0].stockContainerVoList && item.applyVo.outStockObject.outStockItemList[0].stockContainerVoList.length">
+                    <div class="sitem" v-for="sitem,sindex in item.applyVo.outStockObject.outStockItemList[0].stockContainerVoList" v-if="!item.toggle ? (sindex <= itemShowIndex) : true">
+                      <el-row>
+                        <el-col :span="5">{{sitem.batchNum}}</el-col>
+                        <el-col :span="4">{{sitem.usableNum}}</el-col>
+                        <el-col :span="6">{{$moment(sitem.validityDate).format('YYYY-MM-DD')}}</el-col>
+                        <el-col :span="9">
+                          <el-input-number v-model="sitem.num" :min="numMin" :max="numMax(item, sitem)"></el-input-number>
+                        </el-col>
+                      </el-row>
+                    </div>
+                  </template>
+                </el-col>
+              </el-row>
+              <el-row class="t_list_bom">
+                <el-col :span="18">
+                  {{item.disposeContent}}
+                  <!-- <span><sys-value type="THC_PHR_DRUG_ROUTE" :code="item.employ"></sys-value>，</span>
+                  <span><sys-value type="THC_PHR_DRUG_FREQUENCY" :code="item.useFreq"></sys-value>，</span>
+                  <span>每次{{item.singleAmount}}{{item.singleAmountUnitTxt}}，</span>
+                  <span>{{item.count}}{{item.countUnit}}</span> -->
+                </el-col>
+                <el-col :span="6" class="alg_r"><span class="error_tips">{{numMax(item)}}</span><span v-if="item.applyVo && item.applyVo.outStockObject && item.applyVo.outStockObject.outStockItemList && item.applyVo.outStockObject.outStockItemList[0].stockContainerVoList && item.applyVo.outStockObject.outStockItemList[0].stockContainerVoList.length && item.applyVo.outStockObject.outStockItemList[0].stockContainerVoList.length > (itemShowIndex + 1)" class="toggle_btn" :class="item.toggle ? '' : 'toggle'" @click="toggleHandle(index)">{{item.toggle ? '折叠批次' : '显示全部批次'}}<i class="el-icon-arrow-up"></i></span></el-col>
+              </el-row>
+            </li>
+          </ul>
+        </div>
+      </template>
+    </template>
+    <tasklog :orderId="task.variables.orderId" :orderItemId="task.variables.orderItemId"></tasklog>
+    <el-form :inline="true" >
+      <el-form-item label="审核">
+        <el-radio-group v-model="approve" v-if="task.key === 'takeMedicine_checkprescription' || task.key === 'takeWeasternMedicine_checkprescription' || task.key === 'docRefund_doing' || task.key === 'docRefundForHospital_doing'">
+          <el-radio :label="true" >通过</el-radio>
+          <el-radio :label="false">不通过</el-radio>
+        </el-radio-group>
+      </el-form-item>
+      <el-form-item label="备注">
+        <el-input placeholder="10字以内" v-model="description" :maxlength="10" style="min-width:300px"></el-input>
+      </el-form-item>
+    </el-form>
+
+    <!-- 发药的时候显示打印处方 -->
+    <div slot="footer">
+      <el-button @click="createPrintTip" v-if="showPrintKey.indexOf(task.key) !== -1 && !isCH"><i class="iconfont icon-dayinji-"></i>打印用药提醒</el-button>
+      <el-button @click="createPrint" v-if="showPrintKey.indexOf(task.key) !== -1"><i class="iconfont icon-dayinji-"></i>打印</el-button>
+      <el-button type="primary" @click="save" :disabled="(drugStock && !!drugStock.length) || submitDisabled"><i class="icon iconfont icon-tijiao"></i>提交</el-button>
+    </div>
+    <template v-if="showPrintKey.indexOf(task.key) !== -1">
+      <print-chi-recipe v-model="obj" v-if="isCH" :drug-data="obj.recipeItems" :drug-obj="obj" v-show="false" :patient-id="task.patient.id" :visit-sn="task.variables.visitNumber"></print-chi-recipe>
+      <print-recipe v-else :recipe="obj" v-show="false" :patient-id="task.patient.id" :caseinfo="caseinfo" :visit-sn="task.variables.visitNumber"></print-recipe>
+      <print-west-remind :recipe="obj" v-show="false" :visit-sn="task.variables.visitNumber" :patient-id="task.patient.id"></print-west-remind>
+    </template>
+  </el-dialog>
+</template>
+
+<script>
+  import prescription from '@/workspace/page/prescription'
+  import printRecipe from '@/workspace/page/prescription/print/western'
+  import printChiRecipe from '@/workspace/page/prescription/print/chinese'
+  import printWestRemind from '@/workspace/page/prescription/print/westernremind'
+  import taskapi from '@/workspace/store/taskapi'
+  import {doPrint, messageTips, objGroupBy} from '@/util/common'
+
+  import userinfo from '../components/userinfo'
+  import tasklog from '../components/log'
+  import cdss from '../components/cdss'
+  import medicalapi from '../store/medicalapi'
+
+  export default {
+    props: ['task'],
+    data () {
+      return {
+        filterType: 1,
+        approve: true,
+        drugStock: null,
+        numMin: 0,
+        itemShowIndex: 1,
+        obj: {
+          recipeItems: []
+        },
+        showPrintKey: ['takeMedicine_checkprescription', 'takeWeasternMedicine_checkprescription', 'takeMedicine_drugdispensing', 'takeWeasternMedicine_drugdispensing', 'takeMedicine_review_check', 'takeWeasternMedicine_review_check', 'takeMedicine_receivedrug', 'takeWeasternMedicine_receivedrug', 'takeMedicine_makeup', 'takeWeasternMedicine_makeup'],
+        visible: true,
+        description: '',
+        caseinfo: {},
+        submitDisabled: false
+      }
+    },
+    created () {
+      console.log(this.task, '99999')
+      if (this.task.key === 'takeWeasternMedicine_receivedrug') {
+        // 西药发药流程
+        medicalapi.getRecipeRecordByOrderId({orderId: this.task.variables.orderId}).then(result => {
+          if (result && result.recipeItems && result.recipeItems.length) {
+            result.recipeItems.map(item => {
+              item.toggle = !1
+              if (item.applyVo && item.applyVo.outStockObject && item.applyVo.outStockObject.outStockItemList && item.applyVo.outStockObject.outStockItemList[0].stockContainerVoList && item.applyVo.outStockObject.outStockItemList[0].stockContainerVoList.length) {
+                item.totalNum = 0
+                item.applyVo.outStockObject.outStockItemList[0].stockContainerVoList.map((sitem, index) => {
+                  if (item.totalNum < item.count) {
+                    if (sitem.usableNum >= item.count) {
+                      sitem.num = item.count - item.totalNum
+                    } else {
+                      sitem.num = sitem.usableNum
+                    }
+                  } else {
+                    sitem.num = 0
+                  }
+                  item.totalNum += sitem.num
+                  return sitem
+                })
+              }
+              return item
+            })
+          }
+          this.obj = result || this.obj
+        })
+      } else if (this.task.key === 'docRefund_doing' || this.task.key === 'docRefundForHospital_doing') {
+        // 退货确认流程
+        medicalapi.getAdvicesByOrderId({orderId: this.task.variables.orderId}).then(result => {
+          console.log(result, 'getAdvicesByOrderId')
+          this.obj = result || this.obj
+        })
+      } else {
+        // 这块取到的中药值在medicalapi做了处理  后期需要统一
+        medicalapi.getRecipeById(this.task.variables.recipeId).then(result => {
+          if (result && result.recipeItems && result.recipeItems.length) {
+            result.recipeItems.map(item => {
+              item.toggle = !1
+              return item
+            })
+          }
+          this.obj = result || this.obj
+        })
+      }
+
+      // 打印处方需要获取诊断信息
+      medicalapi.getMedicalRecord({visitSn: this.task.variables.visitNumber}).then(rs => {
+        if (!rs.data || rs.data.results.length === 0) {
+          this.caseinfo = {}
+        } else {
+          this.caseinfo = rs.data
+        }
+      })
+      if (this.task.key === 'takeMedicine_makeup' || this.task.key === 'takeWeasternMedicine_makeup') {
+        taskapi.queryDrugStockNum({orderid: this.task.variables.orderId, visitNumber: this.task.variables.visitNumber}).then(rs => {
+          if (rs && rs.data && rs.data.length) {
+            this.drugStock = rs.data
+          }
+        })
+      }
+    },
+    components: {
+      prescription,
+      userinfo,
+      tasklog,
+      cdss,
+      printRecipe,
+      printChiRecipe,
+      printWestRemind
+    },
+    computed: {
+      isCH () {
+        return [303, 304].indexOf(Number(this.task.variables.serviceClassification)) > -1
+      }
+    },
+    methods: {
+      onDialogOpen (flag) {
+        this.visible = true
+      },
+      numMax (item, sitem) {
+        let total = item.count
+        let max = total
+        if (item.applyVo && item.applyVo.outStockObject && item.applyVo.outStockObject.outStockItemList && item.applyVo.outStockObject.outStockItemList[0].stockContainerVoList && item.applyVo.outStockObject.outStockItemList[0].stockContainerVoList.length) {
+          let totalNum = 0
+          item.applyVo.outStockObject.outStockItemList[0].stockContainerVoList.forEach(mitem => {
+            totalNum += mitem.num
+          })
+          if (sitem) {
+            if (totalNum === total) {
+              max = sitem.num
+            }
+            if (sitem.usableNum < total) {
+              max = sitem.usableNum
+            }
+          } else {
+            if (totalNum === total) {
+              max = ''
+            } else {
+              max = '与处方数量不符'
+            }
+          }
+        } else {
+          max = '无批号数据'
+        }
+        return max
+      },
+      toggleHandle (index) {
+        this.obj.recipeItems[index].toggle = !this.obj.recipeItems[index].toggle
+      },
+      createPrintTip () {
+        let printObj = {
+          margin: [0, 0]
+        }
+        doPrint(this, 'printTip', printObj)
+      },
+      createPrint () {
+//        let printObj = {
+//          size: 'A5',
+//          dir: 'landscape'
+//        }
+        doPrint(this, 'print')
+      },
+      close () {
+        this.approve = true
+        this.description = ''
+        this.visible = false
+        this.$emit('update:visible', false)
+      },
+      async save () {
+        this.submitDisabled = true
+        let instore
+        let params = {
+          description: this.description,
+          orderid: this.task.variables.orderId,
+          patientid: this.task.patient.id,
+          status: this.approve ? 1 : -1,
+          visitNumber: this.task.variables.visitNumber,
+          isReturnFee: this.task.variables.isReturnFee
+        }
+        if (this.task.key === 'takeMedicine_checkprescription' || this.task.key === 'takeWeasternMedicine_checkprescription') {
+          const res = await taskapi.getInstore({orderid: this.task.variables.orderId, visitNumber: this.task.variables.visitNumber})
+          if (res && res.data) {
+            instore = res.data.instore
+          }
+        }
+        if ((this.task.key === 'takeMedicine_makeup' || this.task.key === 'takeWeasternMedicine_makeup') && this.drugStock && this.drugStock.length) {
+          return false
+        }
+        let processParams = {
+          instore: instore
+        }
+        if (!this.approve && !this.description) {
+          this.submitDisabled = false
+          return messageTips(this, 'error', '请填写备注')
+        }
+        if (this.task.key === 'takeMedicine_checkprescription' || this.task.key === 'takeWeasternMedicine_checkprescription') {
+          processParams.approval = this.approve
+        }
+        // 西药发药流程执行
+        if (this.task.key === 'takeWeasternMedicine_receivedrug') {
+          let isValid = true
+          if (this.obj && this.obj.recipeItems && this.obj.recipeItems.length) {
+            this.obj.recipeItems.forEach(item => {
+              if (this.numMax(item)) {
+                isValid = false
+              }
+            })
+          }
+          if (!isValid) {
+            this.submitDisabled = false
+            return messageTips(this, 'error', '选择处方数量与原来不符', '提示')
+          }
+          let applyVo = []
+          this.obj.recipeItems.forEach(item => {
+            applyVo.push(item.applyVo)
+          })
+          let applyVoObj = objGroupBy(applyVo, 'id')
+          let newApplyVo = []
+          for (let item in applyVoObj) {
+            let arr = objGroupBy(applyVoObj[item], 'outStockObject.id')
+            for (let sitem in arr) {
+              let outStockObject = {
+                id: sitem,
+                outStockItemList: []
+              }
+              arr[sitem].forEach(mitem => {
+                if (mitem.outStockObject.outStockItemList && mitem.outStockObject.outStockItemList.length) {
+                  mitem.outStockObject.outStockItemList.forEach(nitem => {
+                    let stockContainerVoList = []
+                    if (nitem && nitem.stockContainerVoList && nitem.stockContainerVoList.length) {
+                      nitem.stockContainerVoList.forEach(snitem => {
+                        if (snitem.num !== 0) {
+                          stockContainerVoList.push(snitem)
+                        }
+                      })
+                    }
+                    nitem.stockContainerVoList = stockContainerVoList
+                    outStockObject.outStockItemList.push(nitem)
+                  })
+                }
+              })
+              newApplyVo.push({
+                id: arr[sitem][0].id,
+                number: arr[sitem][0].number,
+                source: arr[sitem][0].source,
+                outStockObject: outStockObject
+              })
+            }
+          }
+          params.applyVos = newApplyVo
+        }
+        taskapi.doTask(this.task.taskId, params, processParams).then(result => {
+          if (result.head.errCode === 0) {
+            this.$notify({
+              title: '成功',
+              message: '提交成功',
+              type: 'success'
+            })
+            this.$emit('refresh')
+          }
+          setTimeout(_ => {
+            this.submitDisabled = false
+          }, 2000)
+          this.$emit('done')
+          this.close()
+        })
+      }
+    }
+  }
+</script>
+<style lang="scss" scoped>
+  .western_drug_list{
+    .top_wrap{
+      b{
+        font-size: 24px;
+        margin-right: 20px;
+        font-weight: 500;
+      }
+      .ever_form_spe{
+        display: inline-block;
+      }
+      .t_head{
+        height: 35px;
+        line-height: 35px;
+        background: #f4f4f4;
+        .el-col{
+          padding: 0 20px;
+        }
+        .el-col.spe{
+          padding: 0;
+        }
+      }
+    }
+    .t_list{
+      padding-bottom: 20px;
+      li{
+        padding: 10px 0 10px;
+      }
+      .item{
+        display: flex;
+        border: 1px solid #eee;
+        .drug_info{
+          display: flex;
+          align-items: center;
+          padding: 20px;
+          b{
+            line-height: 20px;
+            font-weight: 500;
+            display: block;
+          }
+          span{
+            line-height: 20px;
+          }
+        }
+        .drug_batch_detail{
+          border-left: 1px solid #eee;
+          .sitem{
+            overflow: hidden;
+            border-top: 1px solid #eee;
+            .el-col{
+              padding: 0 20px;
+              height: 40px;
+              line-height: 40px;
+              .el-input-number{
+                max-width: 100%;
+              }
+            }
+            &:first-child{
+              border-top: none;
+             }
+          }
+        }
+      }
+      .t_list_bom{
+        height: 30px;
+        line-height: 30px;
+        white-space: nowrap;
+        .error_tips{
+          color: #EE4433;
+        }
+        .toggle_btn{
+          color: #1c7bef;
+          cursor: pointer;
+          i{
+            transition: all .3s;
+            margin-left: 5px;
+          }
+        }
+        .toggle_btn.toggle{
+          i{
+            transform: rotate(180deg);
+          }
+        }
+      }
+    }
+  }
+</style>
+<style type="text/css" scoped>
+  .examination { margin-bottom: 20px; }
+  .examination .el-input{width: 50px; margin-left: 0}
+  .examination .el-input input{text-align: center;}
+  .triageItem {height: 84px; background: #F8F8F8; border-radius: 4px; margin-bottom: 20px; clear: both; }
+  .triageItemDetail {height:auto;font-size: 14px; line-height: 28px;float: left; background: #fff; margin: 20px 0 20px 20px; color: #387FEC; font-weight: bold; padding: 0 70px 0 20px; position: relative; }
+  .triageItemTag { position: absolute; right: 20px; top: 14px; width: 40px; height: 16px; line-height: 16px; font-size: 10px; color: #fff; text-align: center; background: #FA5B5B; }
+  .trigeDoc { height: 14px; line-height: 14px; font-size: 12px; color: #2A2A2A; margin-bottom: 20px; }
+  .trigeDoc span {padding-right: 20px;}
+  .trigeDoc b { color: #999; }
+  .warnItem { padding: 20px; background: rgba(238,68,51,0.12); border: 1px solid #EE4433; border-radius: 4px; margin-bottom: 20px; overflow: hidden; }
+  .warnItem .adviceItem { font-size: 14px; color: #EE4433; clear: both; }
+  .warnItem .adviceItem span { float: left; font-weight: bold; height: 20px; line-height: 20px; }
+  .warnItem .adviceItem ul {float: left;}
+  .warnItem .adviceItem ul li {height: 20px; line-height: 20px; }
+  .drug_stock{
+    border: 1px solid #EE4433;
+    border-radius: 4px;
+    background: rgba(238,68,51,0.12);
+    box-shadow:none;
+    color: #ee4433;
+    margin-bottom: 20px;
+    line-height: 22px;
+    padding: 20px;
+  }
+  .drug_stock ol{
+    margin: 5px 0;
+    padding-left: 20px;
+  }
+  .drug_stock .alg_l{
+    padding-left:20px;
+    font-weight: 600;
+  }
+  .drug_stock span{
+    margin-right: 10px;
+  }
+  .drug_stock.spe{
+    border: 1px solid #387FEC;
+    color: #387FEC;
+    background: rgba(56,127,236,0.12);
+  }
+</style>
